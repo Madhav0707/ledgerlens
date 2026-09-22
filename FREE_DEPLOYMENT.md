@@ -13,7 +13,7 @@ This is a free pilot path for demo or low-volume business testing. Free-service 
 
 1. Create a Supabase project.
 2. Open the project database connection details.
-3. In **Connect**, choose **Session pooler** rather than Direct connection when your network is IPv4-only. Copy its host, port, and user exactly. Session pooler commonly uses port `6543` and a username like `postgres.PROJECT_REF`.
+3. In **Connect**, choose **Session pooler** rather than Direct connection when your network is IPv4-only. Copy its host, port, and user exactly. Session pooler commonly uses port `5432` or `6543` and a username like `postgres.PROJECT_REF`.
 4. Keep the database password private.
 
 Example format (replace every placeholder with values from Supabase):
@@ -27,6 +27,8 @@ Session pooler format is commonly:
 ```text
 postgresql+psycopg://postgres.PROJECT_REF:PASSWORD@POOLER_HOST:6543/postgres
 ```
+
+If the database password contains `@`, `#`, `:`, `/`, `%`, `?`, or other URL characters, URL-encode the password before placing it in the connection URL. The app normalizes `postgresql://` and `postgres://` to the psycopg driver automatically, but `postgresql+psycopg://` is recommended.
 
 ## 2. Prepare production settings
 
