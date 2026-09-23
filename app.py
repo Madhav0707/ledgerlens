@@ -4,7 +4,7 @@ from decimal import Decimal
 import plotly.express as px
 import streamlit as st
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from config import get_settings, validate_runtime
 from ai.analyst import run_analyst_query
@@ -900,8 +900,18 @@ def dashboard() -> None:
     st.info("Sales, customers, suppliers, reports, and AI analysis will be added phase by phase.")
 
 
-with SessionLocal() as session:
-    has_users = session.scalar(select(func.count(User.id))) or 0
+try:
+    with SessionLocal() as session:
+        has_users = session.scalar(select(func.count(User.id))) or 0
+except OperationalError:
+    st.error("LedgerLens could not connect to the configured database.")
+    st.info(
+        "Check Streamlit Cloud Secrets: DATABASE_URL must use the Supabase "
+        "Session Pooler host, the correct password, and a URL-encoded password "
+        "if it contains characters such as @, #, :, /, %, ?, or &. "
+        "After saving Secrets, reboot the app."
+    )
+    st.stop()
 
 if has_users == 0:
     setup_business()
