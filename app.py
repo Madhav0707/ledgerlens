@@ -28,7 +28,7 @@ from services.cancellation_service import cancel_sale
 
 settings = get_settings()
 validate_runtime(settings)
-st.set_page_config(page_title="LedgerLens", page_icon="LL", layout="wide")
+st.set_page_config(page_title="LedgerLens", page_icon=":material/insights:", layout="wide")
 if settings.auto_create_schema:
     Base.metadata.create_all(engine)
     apply_sqlite_dev_migrations()
@@ -53,10 +53,16 @@ def load_summary(business_id: int) -> tuple[int, int, Decimal]:
         return business_count, product_count, Decimal(str(inventory_value))
 
 
-def setup_business() -> None:
-    st.title("Set up LedgerLens")
-    st.caption("Create the first business owner account. Passwords are stored as bcrypt hashes.")
-    with st.form("business_setup"):
+def page_header(title: str, subtitle: str, icon: str) -> None:
+    st.title(title, icon=f":material/{icon}:")
+    st.caption(subtitle)
+
+
+def setup_business(form_key: str = "business_setup", show_header: bool = True) -> None:
+    if show_header:
+        page_header("Set up LedgerLens", "Create your business workspace and owner account.", "rocket_launch")
+        st.caption("Create the first business owner account. Passwords are stored as bcrypt hashes.")
+    with st.form(form_key):
         business_name = st.text_input("Business name", placeholder="Mehta Electronics")
         address = st.text_area("Address", placeholder="Jaipur, Rajasthan")
         contact = st.text_input("Contact number or email")
@@ -64,7 +70,7 @@ def setup_business() -> None:
         email = st.text_input("Owner email")
         password = st.text_input("Password", type="password", help="Use at least 8 characters.")
         confirm_password = st.text_input("Confirm password", type="password")
-        submitted = st.form_submit_button("Create business", type="primary")
+        submitted = st.form_submit_button("Create shop", type="primary")
 
     if not submitted:
         return
@@ -92,40 +98,43 @@ def setup_business() -> None:
 
 
 def login() -> None:
-    st.title("LedgerLens")
-    st.caption("Sign in to your business workspace.")
-    with st.form("login"):
-        email = st.text_input("Email")
-        password = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Sign in", type="primary")
-    if not submitted:
-        return
-    normalized_email = email.strip().lower()
-    if not login_allowed(normalized_email):
-        st.error("Too many failed attempts. Try again in 15 minutes.")
-        return
-    with SessionLocal() as session:
-        user = session.scalar(select(User).where(User.email == normalized_email, User.is_active.is_(True)))
-        if user is None or not verify_password(password, user.password_hash):
-            record_login_failure(normalized_email)
-            st.error("Invalid email or password.")
-            return
-        membership = session.scalar(select(BusinessMembership).where(BusinessMembership.user_id == user.id))
-        if membership is None:
-            st.error("Your account is not linked to an active business.")
-            return
-        clear_login_failures(normalized_email)
-        st.session_state.user_id = user.id
-        st.session_state.business_id = membership.business_id
-        st.session_state.role = membership.role
-        st.session_state.last_activity = datetime.now().timestamp()
-        st.rerun()
+    page_header("Welcome back", "Sign in to your LedgerLens business workspace.", "waving_hand")
+    sign_in_tab, new_shop_tab = st.tabs(["Sign in", "Create a new shop"])
+    with sign_in_tab:
+        with st.form("login"):
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Sign in", type="primary")
+        if submitted:
+            normalized_email = email.strip().lower()
+            if not login_allowed(normalized_email):
+                st.error("Too many failed attempts. Try again in 15 minutes.")
+                return
+            with SessionLocal() as session:
+                user = session.scalar(select(User).where(User.email == normalized_email, User.is_active.is_(True)))
+                if user is None or not verify_password(password, user.password_hash):
+                    record_login_failure(normalized_email)
+                    st.error("Invalid email or password.")
+                else:
+                    membership = session.scalar(select(BusinessMembership).where(BusinessMembership.user_id == user.id))
+                    if membership is None:
+                        st.error("Your account is not linked to an active business.")
+                    else:
+                        clear_login_failures(normalized_email)
+                        st.session_state.user_id = user.id
+                        st.session_state.business_id = membership.business_id
+                        st.session_state.role = membership.role
+                        st.session_state.last_activity = datetime.now().timestamp()
+                        st.rerun()
+
+    with new_shop_tab:
+        st.caption("For a new business owner. Existing employees should sign in with the account created by their shop owner.")
+        setup_business(form_key="new_business_setup", show_header=False)
 
 
 def inventory_page() -> None:
     business_id = st.session_state.business_id
-    st.title("Products & Inventory")
-    st.caption("Track products, opening stock, prices, and authorized stock adjustments.")
+    page_header("Products & inventory", "Keep stock, pricing, and reorder signals in one calm workspace.", "inventory_2")
     add_tab, adjust_tab, list_tab = st.tabs(["Add product", "Adjust stock", "Product list"])
 
     with add_tab:
@@ -218,8 +227,7 @@ def inventory_page() -> None:
 
 def sales_page() -> None:
     business_id = st.session_state.business_id
-    st.title("Sales & Payments")
-    st.caption("Record sales, partial payments, and later collections. Revenue and cash collected are separate.")
+    page_header("Sales & payments", "Record sales, collect balances, and keep returns auditable.", "point_of_sale")
     sale_tab, customer_tab, receivable_tab, return_tab, cancel_tab = st.tabs(
         ["New sale", "Customers", "Receivables", "Returns", "Cancellations"]
     )
@@ -439,8 +447,7 @@ def purchases_page() -> None:
     except PermissionError as error:
         st.error(str(error))
         return
-    st.title("Suppliers & Purchases")
-    st.caption("Record supplier purchases separately from sales. Confirmed purchases increase stock and create payables.")
+    page_header("Suppliers & purchases", "Restock with confidence and keep supplier payables visible.", "local_shipping")
     purchase_tab, supplier_tab, payable_tab = st.tabs(["New purchase", "Suppliers", "Payables"])
 
     with supplier_tab:
@@ -574,8 +581,7 @@ def purchases_page() -> None:
 
 def reports_page() -> None:
     business_id = st.session_state.business_id
-    st.title("Reports & Analytics")
-    st.caption("Calculated from confirmed sales, payments, purchases, and current inventory records.")
+    page_header("Reports & analytics", "Turn confirmed activity into a clear view of cash, profit, and exposure.", "query_stats")
     today = date.today()
     filter_col, end_col = st.columns(2)
     start_date = filter_col.date_input("Start date", value=today - timedelta(days=30))
@@ -637,8 +643,7 @@ def reports_page() -> None:
 
 
 def analyst_page() -> None:
-    st.title("AI Data Analyst")
-    st.caption("Ask questions about this business. The selected AI provider can read data only; it cannot modify records.")
+    page_header("AI data analyst", "Ask questions about your business. The analyst can read data, never modify it.", "auto_awesome")
     provider = OpenRouterProvider(settings) if settings.ai_provider.lower() == "openrouter" else GeminiProvider(settings)
     if not provider.configured:
         required_key = "OPENROUTER_API_KEY" if settings.ai_provider.lower() == "openrouter" else "GEMINI_API_KEY"
@@ -675,8 +680,7 @@ def analyst_page() -> None:
 
 def documents_page() -> None:
     business_id = st.session_state.business_id
-    st.title("Business Documents")
-    st.caption("Upload supplier policies, manuals, and price lists. Files stay associated with this business.")
+    page_header("Business documents", "Keep policies, price lists, and invoice intelligence close to the work.", "description")
     uploaded = st.file_uploader("Upload PDF or CSV", type=["pdf", "csv"])
     if uploaded is not None and st.button("Save document", type="primary"):
         try:
@@ -743,8 +747,7 @@ def settings_page() -> None:
     if st.session_state.get("role") != "owner":
         st.error("Only the business owner can manage settings and employees.")
         return
-    st.title("Settings")
-    st.caption("Manage employee access. Employees cannot change stock or confirm purchases.")
+    page_header("Settings", "Manage team access and keep account security up to date.", "settings")
     with st.form("create_employee"):
         full_name = st.text_input("Employee full name")
         email = st.text_input("Employee email")
@@ -802,8 +805,7 @@ def audit_page() -> None:
         st.error("Only the business owner can view the audit history.")
         return
     business_id = st.session_state.business_id
-    st.title("Audit History")
-    st.caption("Immutable operational history for financial and inventory actions.")
+    page_header("Audit history", "A transparent record of financial, inventory, and access activity.", "history")
     with SessionLocal() as session:
         entries = session.scalars(
             select(AuditLog).where(AuditLog.business_id == business_id)
@@ -838,66 +840,118 @@ def dashboard() -> None:
     st.session_state.last_activity = datetime.now().timestamp()
     business_count, product_count, inventory_value = load_summary(st.session_state.business_id)
     with st.sidebar:
-        st.header("LedgerLens")
-        st.caption(f"Environment: {settings.app_env}")
+        st.markdown("# LedgerLens")
+        st.caption("Finance, inventory, and decisions in one place")
+        st.badge(st.session_state.get("role", "member").title(), icon=":material/person:", color="green")
+        st.space("small")
         page = st.radio(
             "Workspace",
             [
-                "Dashboard",
-                "Products & Inventory",
-                "Sales & Payments",
-                "Suppliers & Purchases",
-                "Reports & Analytics",
-                "AI Data Analyst",
-                "Documents",
-                "Settings",
-                "Audit History",
+                ":material/dashboard: Dashboard",
+                ":material/inventory_2: Products & inventory",
+                ":material/point_of_sale: Sales & payments",
+                ":material/local_shipping: Suppliers & purchases",
+                ":material/query_stats: Reports & analytics",
+                ":material/auto_awesome: AI data analyst",
+                ":material/description: Documents",
+                ":material/settings: Settings",
+                ":material/history: Audit history",
             ],
             label_visibility="collapsed",
         )
+        page_key = page.split(" ", 1)[1]
+        st.space("small")
+        st.caption(f"Environment: {settings.app_env}")
         if settings.gemini_api_key:
-            st.caption(f"Gemini configured: {settings.gemini_model}")
+            st.caption(f"AI ready: {settings.gemini_model}")
         else:
-            st.caption("Gemini API key not configured yet")
-        if st.button("Sign out"):
+            st.caption("AI provider not configured yet")
+        if st.button("Sign out", icon=":material/logout:", use_container_width=True):
             st.session_state.clear()
             st.rerun()
 
-    if page == "Products & Inventory":
+    if page_key == "Products & inventory":
         inventory_page()
         return
-    if page == "Sales & Payments":
+    if page_key == "Sales & payments":
         sales_page()
         return
-    if page == "Suppliers & Purchases":
+    if page_key == "Suppliers & purchases":
         purchases_page()
         return
-    if page == "Reports & Analytics":
+    if page_key == "Reports & analytics":
         reports_page()
         return
-    if page == "AI Data Analyst":
+    if page_key == "AI data analyst":
         analyst_page()
         return
-    if page == "Documents":
+    if page_key == "Documents":
         documents_page()
         return
-    if page == "Settings":
+    if page_key == "Settings":
         settings_page()
         return
-    if page == "Audit History":
+    if page_key == "Audit history":
         audit_page()
         return
 
-    st.title("LedgerLens")
-    st.caption("AI finance and operations copilot | Phase 1 foundation")
-    metric_one, metric_two, metric_three = st.columns(3)
-    metric_one.metric("Businesses", business_count)
-    metric_two.metric("Products", product_count)
-    metric_three.metric("Inventory value", format_inr(inventory_value))
-    st.divider()
-    st.subheader("Dashboard")
-    st.success("Database connection is active.")
-    st.info("Sales, customers, suppliers, reports, and AI analysis will be added phase by phase.")
+    page_header("Good morning, let's get to work", "A quick pulse on your business, with the next useful action close at hand.", "dashboard")
+    today = date.today()
+    with SessionLocal() as session:
+        report = business_report(
+            session,
+            business_id=st.session_state.business_id,
+            start_date=today - timedelta(days=30),
+            end_date=today,
+        )
+
+    with st.container(horizontal=True):
+        st.metric("30-day revenue", format_inr(report["revenue"]), border=True)
+        st.metric("Cash collected", format_inr(report["cash_collected"]), border=True)
+        st.metric("To collect", format_inr(report["customer_receivables"]), border=True)
+        st.metric("Inventory value", format_inr(inventory_value), border=True)
+
+    st.space("small")
+    overview_col, action_col = st.columns([1.35, 0.65], gap="large")
+    with overview_col:
+        with st.container(border=True):
+            st.subheader("Workspace pulse", icon=":material/monitoring:")
+            st.caption(f"Last 30 days | {report['sales_count']} confirmed sales | {report['purchase_count']} purchases")
+            if report["gross_profit_available"]:
+                st.metric("Gross profit", format_inr(report["gross_profit"]), border=True)
+            else:
+                st.warning("Gross profit needs captured product costs for every sale line.", icon=":material/warning:")
+            if report["payment_breakdown"]:
+                chart_data = [
+                    {"Method": method.title(), "Amount": float(amount)}
+                    for method, amount in report["payment_breakdown"].items()
+                ]
+                st.plotly_chart(
+                    px.bar(
+                        chart_data,
+                        x="Method",
+                        y="Amount",
+                        color="Method",
+                        text_auto=".2s",
+                        labels={"Amount": "INR collected"},
+                        color_discrete_sequence=["#0f766e", "#ef8354", "#285943", "#e0a458"],
+                    ).update_layout(
+                        showlegend=False,
+                        margin=dict(l=0, r=0, t=12, b=0),
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        paper_bgcolor="rgba(0,0,0,0)",
+                    ),
+                    width="stretch",
+                )
+            else:
+                st.info("Record a sale or payment to see collection patterns here.", icon=":material/insights:")
+    with action_col:
+        with st.container(border=True):
+            st.subheader("At a glance", icon=":material/bolt:")
+            st.metric("Products tracked", product_count)
+            st.metric("Businesses", business_count)
+            st.caption("Use the workspace navigation to record activity, review exposure, or ask the analyst.")
+            st.badge("Database connection active", icon=":material/check_circle:", color="green")
 
 
 try:
