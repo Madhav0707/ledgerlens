@@ -16,6 +16,15 @@ def test_valid_query_is_scoped_and_limited():
     assert result.sql.endswith("LIMIT 100")
 
 
+def test_single_trailing_semicolon_is_allowed():
+    result = validate_read_only_sql(
+        "SELECT name, sku, stock_quantity FROM products "
+        "WHERE business_id = :business_id AND stock_quantity > 0;"
+    )
+    assert ";" not in result.sql
+    assert result.sql.endswith("LIMIT 100")
+
+
 @pytest.mark.parametrize("sql", [
     "DROP TABLE products",
     "UPDATE products SET stock_quantity = 0 WHERE business_id = :business_id",

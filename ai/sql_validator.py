@@ -34,6 +34,8 @@ def validate_read_only_sql(sql: str) -> ValidatedQuery:
     candidate = sql.strip()
     if not candidate:
         raise ValueError("The AI returned an empty SQL query.")
+    if candidate.endswith(";"):
+        candidate = candidate[:-1].rstrip()
     if ";" in candidate:
         raise ValueError("Multiple SQL statements are not allowed.")
     if "--" in candidate or "/*" in candidate or "*/" in candidate:
