@@ -276,25 +276,49 @@ def sales_page() -> None:
             product_options = {f"{product.name} ({product.sku})": product for product in products}
             customer_options = {"Walk-in customer": None}
             customer_options.update({f"{customer.name} ({customer.contact or 'no contact'})": customer.id for customer in customers})
+            create_customer_inline = st.toggle("Add a new customer for this sale", key="sale_new_customer")
+            new_customer_name = ""
+            new_customer_contact = ""
+            if create_customer_inline:
+                customer_name_col, customer_contact_col = st.columns(2)
+                new_customer_name = customer_name_col.text_input("New customer name", key="sale_new_customer_name")
+                new_customer_contact = customer_contact_col.text_input("New customer contact", key="sale_new_customer_contact")
             with st.form("new_sale"):
                 selected_product = st.selectbox("Product", list(product_options))
                 quantity = st.number_input("Quantity", min_value=1, value=1, step=1)
-                selected_customer = st.selectbox("Customer", list(customer_options))
+                if create_customer_inline:
+                    st.caption("This customer will be saved and linked to the sale.")
+                    selected_customer = "Walk-in customer"
+                else:
+                    selected_customer = st.selectbox("Customer", list(customer_options))
                 discount = st.number_input("Discount (INR)", min_value=0.0, value=0.0, step=100.0)
                 amount_paid = st.number_input("Amount paid now (INR)", min_value=0.0, value=0.0, step=100.0)
                 payment_method = st.selectbox("Payment method", ["cash", "upi", "card", "bank transfer", "other"])
                 reference = st.text_input("Sale reference", help="Use a receipt or invoice reference to prevent duplicate submissions.")
                 submitted = st.form_submit_button("Confirm sale", type="primary")
             if submitted:
+                if create_customer_inline and not new_customer_name.strip():
+                    st.error("Enter the new customer's name.")
+                    return
                 try:
                     with SessionLocal.begin() as session:
+                        customer_id = customer_options[selected_customer]
+                        if create_customer_inline:
+                            customer = Customer(
+                                business_id=business_id,
+                                name=new_customer_name.strip(),
+                                contact=new_customer_contact.strip() or None,
+                            )
+                            session.add(customer)
+                            session.flush()
+                            customer_id = customer.id
                         sale = record_sale(
                             session,
                             business_id=business_id,
                             lines=[SaleLine(product_id=product_options[selected_product].id, quantity=quantity)],
                             amount_paid=Decimal(str(amount_paid)),
                             payment_method=payment_method,
-                            customer_id=customer_options[selected_customer],
+                            customer_id=customer_id,
                             discount=Decimal(str(discount)),
                             reference=reference.strip() or None,
                             user_id=st.session_state.user_id,
@@ -487,13 +511,28 @@ def purchases_page() -> None:
             suppliers = session.scalars(
                 select(Supplier).where(Supplier.business_id == business_id).order_by(Supplier.name)
             ).all()
-        if not products or not suppliers:
-            st.info("Add at least one product and supplier before recording a purchase.")
+        if not products:
+            st.info("Add at least one product before recording a purchase.")
         else:
             product_options = {f"{product.name} ({product.sku})": product for product in products}
             supplier_options = {f"{supplier.name} ({supplier.contact or 'no contact'})": supplier.id for supplier in suppliers}
+            create_supplier_inline = st.toggle("Add a new supplier for this purchase", key="purchase_new_supplier")
+            new_supplier_name = ""
+            new_supplier_contact = ""
+            if create_supplier_inline:
+                supplier_name_col, supplier_contact_col = st.columns(2)
+                new_supplier_name = supplier_name_col.text_input("New supplier name", key="purchase_new_supplier_name")
+                new_supplier_contact = supplier_contact_col.text_input("New supplier contact", key="purchase_new_supplier_contact")
             with st.form("new_purchase"):
-                selected_supplier = st.selectbox("Supplier", list(supplier_options))
+                if create_supplier_inline:
+                    st.caption("This supplier will be saved and linked to the purchase.")
+                    selected_supplier = ""
+                else:
+                    if supplier_options:
+                        selected_supplier = st.selectbox("Supplier", list(supplier_options))
+                    else:
+                        st.info("No suppliers yet. Turn on the option above to add one now.")
+                        selected_supplier = ""
                 selected_product = st.selectbox("Product", list(product_options))
                 quantity = st.number_input("Quantity", min_value=1, value=1, step=1, key="purchase_quantity")
                 unit_cost = st.number_input("Unit cost (INR)", min_value=0.0, step=100.0)
@@ -502,12 +541,25 @@ def purchases_page() -> None:
                 reference = st.text_input("Purchase reference", help="Supplier invoice or purchase-order reference.")
                 submitted = st.form_submit_button("Confirm purchase", type="primary")
             if submitted:
+                if create_supplier_inline and not new_supplier_name.strip():
+                    st.error("Enter the new supplier's name.")
+                    return
                 try:
                     with SessionLocal.begin() as session:
+                        supplier_id = supplier_options.get(selected_supplier)
+                        if create_supplier_inline:
+                            supplier = Supplier(
+                                business_id=business_id,
+                                name=new_supplier_name.strip(),
+                                contact=new_supplier_contact.strip() or None,
+                            )
+                            session.add(supplier)
+                            session.flush()
+                            supplier_id = supplier.id
                         purchase = record_purchase(
                             session,
                             business_id=business_id,
-                            supplier_id=supplier_options[selected_supplier],
+                            supplier_id=supplier_id,
                             lines=[PurchaseLine(
                                 product_id=product_options[selected_product].id,
                                 quantity=quantity,

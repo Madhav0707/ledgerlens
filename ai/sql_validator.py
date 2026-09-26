@@ -16,6 +16,12 @@ ALLOWED_TABLES = {
     "purchase_items",
     "suppliers",
     "inventory_movements",
+    "documents",
+    "document_chunks",
+    "audit_logs",
+    "returns",
+    "return_items",
+    "refunds",
 }
 FORBIDDEN_WORDS = re.compile(
     r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|ATTACH|DETACH|REPLACE|TRUNCATE|GRANT|REVOKE|PRAGMA|VACUUM)\b",

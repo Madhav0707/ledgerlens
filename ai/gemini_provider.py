@@ -26,12 +26,18 @@ class GeminiProvider:
         from google.genai import errors
 
         client = genai.Client(api_key=self.settings.gemini_api_key)
-        prompt = f"""You are a read-only business data analyst.
+        prompt = f"""You are a read-only business data analyst for a small business.
 Return JSON with exactly: sql and rationale.
-Write one PostgreSQL/SQLite-compatible SELECT query only.
+    Write one PostgreSQL/SQLite-compatible SELECT query only that answers the user's question directly.
 Use the named parameter :business_id in a WHERE condition for every query.
 Never write, modify, delete, or expose credentials. Use only this schema:
 {schema_description}
+    Interpret common business questions as follows:
+    - Current stock means products.stock_quantity, and low stock means stock_quantity <= low_stock_threshold.
+    - Lifetime or "till now" means do not add a date filter; use confirmed records unless the user says otherwise.
+    - Gross profit means SUM((sale_items.unit_price - sale_items.unit_cost) * sale_items.quantity) for confirmed sales, excluding rows where unit_cost is NULL.
+    - Receivables mean confirmed sales total minus payments linked to those sales; payables mean confirmed purchases total minus payments linked to those purchases.
+    - Always scope the business through a business_id filter on a business-owned table, including when joining child tables.
 Question: {question}
 """
         try:

@@ -11,7 +11,11 @@ SCHEMA_DESCRIPTION = """
 businesses(id, name); customers(id, business_id, name); products(id, business_id, name, sku, cost_price, selling_price, stock_quantity, low_stock_threshold);
 sales(id, business_id, customer_id, reference, total_amount, status, created_at); sale_items(sale_id, product_id, quantity, unit_price, unit_cost);
 payments(id, business_id, sale_id, purchase_id, amount, method, created_at); purchases(id, business_id, supplier_id, reference, total_amount, status, created_at);
-purchase_items(purchase_id, product_id, quantity, unit_cost); suppliers(id, business_id, name); inventory_movements(id, business_id, product_id, quantity_delta, reason, created_at).
+purchase_items(purchase_id, product_id, quantity, unit_cost); suppliers(id, business_id, name); inventory_movements(id, business_id, product_id, quantity_delta, reason, created_at);
+documents(id, business_id, filename, file_type, content_text, created_at); document_chunks(id, business_id, document_id, chunk_index, page_number, content);
+audit_logs(id, business_id, user_id, action, entity_type, entity_id, details, created_at);
+returns(id, business_id, sale_id, total_amount, reason, status, created_at); return_items(id, return_id, sale_item_id, quantity, unit_price);
+refunds(id, business_id, return_id, amount, method, created_at).
 """
 
 
